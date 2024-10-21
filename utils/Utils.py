@@ -547,28 +547,49 @@ def plot_TSNE_plotly(
     labels: np.ndarray,
     alphas: np.ndarray,
     display_metrics: bool = False,
+    grid=None,
+    title=None,
+    width=None,
+    height=None,
+    show: bool = True,
+    colorscale="Rainbow",
+    custom_palette=None,  # Add a parameter for custom colors
 ) -> go.Figure:
     n_subplots = len(tsne_results)
-
     n_samples = raw_data.shape[0]
 
-    # Calculate the number of rows and columns
-    n_cols = 5  # Fixed number of columns
-    n_rows = (n_subplots + n_cols - 1) // n_cols  # Calculate the number of rows needed
+    if not grid:
+        # Calculate the number of rows and columns
+        n_cols = 5  # Fixed number of columns
+        n_rows = (
+            n_subplots + n_cols - 1
+        ) // n_cols  # Calculate the number of rows needed
+    else:
+        n_rows, n_cols = grid
 
     if display_metrics:
         goodness_of_fit = compute_goodness_of_fit(
             raw_data=raw_data, tsne_data_list=tsne_results, dofs=alphas, plot=False
         )
 
+    # If no custom palette is provided, fall back to the 'Spectral' palette
+    if custom_palette:
+        digit_colors = sns.color_palette("Spectral", as_cmap=True)
+
+    # Ensure the palette is a list of colors
+
     # Create subplots
     fig = make_subplots(
         rows=n_rows,
         cols=n_cols,
         subplot_titles=[f"α={alpha:.2f}" for alpha in alphas],
+        vertical_spacing=0.05,
+        horizontal_spacing=0.05,
     )
 
     for i, tsne_result in enumerate(tsne_results):
+        # Map each label to a color in the custom palette
+
         fig.add_trace(
             go.Scatter(
                 x=tsne_result[:, 0],
@@ -576,14 +597,15 @@ def plot_TSNE_plotly(
                 mode="markers",
                 marker=dict(
                     size=3,
-                    color=labels,
-                    colorscale="Rainbow",  # Choose a colorscale
+                    color=digit_colors[labels],
+                    colorscale=colorscale if not custom_palette else None,
                     opacity=0.8,
                 ),
             ),
             row=i // n_cols + 1,
             col=i % n_cols + 1,
         )
+
         if display_metrics:
             # Handle 'xref' and 'yref' properly
             xref = f"x{i+1}" if i > 0 else "x"
@@ -610,12 +632,14 @@ def plot_TSNE_plotly(
             )
 
     fig.update_layout(
-        title=f"t-SNE embedding of the Swiss Roll ({n_samples} datapoints) dataset for different DoFs",
+        title=f"t-SNE embedding of the dataset ({n_samples} datapoints) for different DoFs"
+        if not title
+        else title,
         xaxis_title="",
         yaxis_title="",
         template="plotly_dark",
-        width=1600,
-        height=800,
+        width=1600 if not width else width,
+        height=800 if not height else height,
         showlegend=False,
         font=dict(
             family="Courier New, monospace",
@@ -625,8 +649,9 @@ def plot_TSNE_plotly(
 
     fig.update_xaxes(showticklabels=False, showgrid=False)
     fig.update_yaxes(showticklabels=False, showgrid=False)
-
-    fig.show()
+    if show:
+        fig.show()
+    return fig
 
 
 def compute_tsne_embedding(
