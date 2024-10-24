@@ -172,7 +172,7 @@ def compute_goodness_of_fit(
             )
 
         fig.update_layout(
-            title="Goodness of t-SNE fit for Swiss Roll dataset with different DoFs",
+            title="Goodness of t-SNE fit for the dataset with different DoFs",
             showlegend=False,
             template="plotly_dark",
             width=1000,
@@ -355,7 +355,7 @@ def plot_swiss_roll_matplotlib(
 
 # Create a 3D scatter plot
 def plot_swiss_roll_plotly(
-    sr_points: np.ndarray, sr_color: np.ndarray, n_samples: int
+    sr_points: np.ndarray, sr_color: np.ndarray, n_samples: int, row=1, col=1, fig=None
 ) -> go.Figure:
     """
     Create a 3D scatter plot of the Swiss Roll dataset using Plotly.
@@ -363,50 +363,63 @@ def plot_swiss_roll_plotly(
     Parameters
     ----------
     sr_points : np.ndarray
-        The Swiss Roll dataset
+        The Swiss Roll dataset points.
     sr_color : np.ndarray
-        The color of the points in the Swiss Roll dataset
+        The colors corresponding to each point.
+    n_samples : int
+        The number of samples in the dataset.
+    row : int, optional
+        The row position in a subplot grid. Default is 1.
+    col : int, optional
+        The column position in a subplot grid. Default is 1.
+    fig : go.Figure, optional
+        An existing figure object to add the Swiss Roll plot into.
 
     Returns
     -------
     go.Figure
-        The Plotly figure object
+        The Plotly figure object with the Swiss Roll 3D plot.
     """
-    fig = go.Figure(
-        data=[
-            go.Scatter3d(
-                x=sr_points[:, 0],
-                y=sr_points[:, 1],
-                z=sr_points[:, 2],
-                mode="markers",
-                marker=dict(
-                    size=3,
-                    color=sr_color,
-                    colorscale="Rainbow",  # Choose a colorscale
-                    opacity=0.8,
-                ),
-            )
-        ]
+
+    # If no existing figure is passed, create a new one
+    if fig is None:
+        fig = make_subplots(rows=row, cols=col, specs=[[{"type": "scene"}] * col] * row)
+
+    # Add the Swiss Roll 3D scatter plot
+    fig.add_trace(
+        go.Scatter3d(
+            x=sr_points[:, 0],
+            y=sr_points[:, 1],
+            z=sr_points[:, 2],
+            mode="markers",
+            marker=dict(
+                size=3,
+                color=sr_color,
+                colorscale="Rainbow",  # Choose a colorscale
+                opacity=0.8,
+            ),
+        ),
+        row=row,
+        col=col,
     )
 
-    # Update layout for dark background
+    # Update the layout for a dark background
     fig.update_layout(
         title="Swiss Roll in Ambient Space",
-        # set the style to dark
         template="plotly_dark",
         scene=dict(
             xaxis=dict(title="X"),
             yaxis=dict(title="Y"),
             zaxis=dict(title="Z"),
             camera=dict(
-                eye=dict(x=-1, y=2, z=0.5),
+                eye=dict(x=-1, y=2, z=0.5),  # Camera perspective
             ),
         ),
-        width=800,
-        height=600,
+        width=800 * col,
+        height=600 * row,
     )
 
-    # Add text annotation
+    # Add a text annotation for the number of samples
     fig.add_annotation(
         text=f"N samples={n_samples}",
         xref="paper",
@@ -417,7 +430,6 @@ def plot_swiss_roll_plotly(
         font=dict(color="white"),
     )
 
-    fig.show()
     return fig
 
 
@@ -544,73 +556,106 @@ def plot_TSNE(
 def plot_TSNE_plotly(
     raw_data: np.ndarray,
     tsne_results: list,
-    labels: np.ndarray,
-    alphas: np.ndarray,
+    labels: np.ndarray = None,
+    alphas: np.ndarray = None,
     display_metrics: bool = False,
     grid=None,
     title=None,
-    width=None,
-    height=None,
+    width=1600,
+    height=800,
     show: bool = True,
+    custom_colors: list = None,
     colorscale="Rainbow",
-    custom_palette=None,  # Add a parameter for custom colors
+    labeled: bool = True,
 ) -> go.Figure:
     n_subplots = len(tsne_results)
     n_samples = raw_data.shape[0]
 
-    if not grid:
-        # Calculate the number of rows and columns
-        n_cols = 5  # Fixed number of columns
-        n_rows = (
-            n_subplots + n_cols - 1
-        ) // n_cols  # Calculate the number of rows needed
+    # Grid auto-calculation if not provided
+    if grid is None:
+        n_cols = max((len(tsne_results) // 2), 1)
+        n_rows = (n_subplots + n_cols - 1) // n_cols
     else:
         n_rows, n_cols = grid
 
+    # Optionally compute goodness of fit metrics
+    goodness_of_fit = None
     if display_metrics:
         goodness_of_fit = compute_goodness_of_fit(
             raw_data=raw_data, tsne_data_list=tsne_results, dofs=alphas, plot=False
         )
 
-    # If no custom palette is provided, fall back to the 'Spectral' palette
-    if custom_palette:
-        digit_colors = sns.color_palette("Spectral", as_cmap=True)
+    # Set color options
+    if custom_colors is None:
+        custom_colors = [
+            "red",
+            "blue",
+            "green",
+            "yellow",
+            "purple",
+            "orange",
+            "cyan",
+            "magenta",
+            "lime",
+            "white",
+        ]
 
-    # Ensure the palette is a list of colors
-
-    # Create subplots
+    # Prepare subplots
     fig = make_subplots(
         rows=n_rows,
         cols=n_cols,
-        subplot_titles=[f"α={alpha:.2f}" for alpha in alphas],
+        subplot_titles=[
+            f"α={alpha:.2f}"
+            for alpha in (alphas if alphas is not None else range(n_subplots))
+        ],
         vertical_spacing=0.05,
         horizontal_spacing=0.05,
     )
 
+    # Add t-SNE scatter plots
     for i, tsne_result in enumerate(tsne_results):
-        # Map each label to a color in the custom palette
-
-        fig.add_trace(
-            go.Scatter(
-                x=tsne_result[:, 0],
-                y=tsne_result[:, 1],
-                mode="markers",
-                marker=dict(
-                    size=3,
-                    color=digit_colors[labels],
-                    colorscale=colorscale if not custom_palette else None,
-                    opacity=0.8,
+        if labeled and labels is not None:
+            unique_labels = np.unique(labels)
+            for k, label in enumerate(unique_labels):
+                fig.add_trace(
+                    go.Scatter(
+                        x=tsne_result[labels == label, 0],
+                        y=tsne_result[labels == label, 1],
+                        mode="markers",
+                        marker=dict(
+                            size=3,
+                            color=custom_colors[k % len(custom_colors)]
+                            if custom_colors
+                            else label,
+                            opacity=0.8,
+                        ),
+                        name=f"Label {label}",
+                    ),
+                    row=(i // n_cols) + 1,
+                    col=(i % n_cols) + 1,
+                )
+        else:
+            fig.add_trace(
+                go.Scatter(
+                    x=tsne_result[:, 0],
+                    y=tsne_result[:, 1],
+                    mode="markers",
+                    marker=dict(
+                        size=3,
+                        color=labels if labels is not None else "gray",
+                        colorscale=colorscale,
+                        opacity=0.8,
+                    ),
+                    showlegend=False,
                 ),
-            ),
-            row=i // n_cols + 1,
-            col=i % n_cols + 1,
-        )
+                row=(i // n_cols) + 1,
+                col=(i % n_cols) + 1,
+            )
 
-        if display_metrics:
-            # Handle 'xref' and 'yref' properly
+        # Add metrics as annotations if required
+        if display_metrics and goodness_of_fit is not None:
             xref = f"x{i+1}" if i > 0 else "x"
             yref = f"y{i+1}" if i > 0 else "y"
-            # Add annotations for KL divergence and kNN recall for each subplot
             fig.add_annotation(
                 text=f"KL: {goodness_of_fit.KL_divergence[i]:.2f}",
                 xref=f"{xref} domain",
@@ -620,7 +665,6 @@ def plot_TSNE_plotly(
                 showarrow=False,
                 font=dict(color="white", size=12),
             )
-
             fig.add_annotation(
                 text=f"kNN Recall: {goodness_of_fit.kNN_recall[i]:.2f}",
                 xref=f"{xref} domain",
@@ -631,26 +675,27 @@ def plot_TSNE_plotly(
                 font=dict(color="white", size=12),
             )
 
+    # Set up title and layout
+    sup_title = (
+        f"t-SNE embedding of the dataset ({n_samples} datapoints)"
+        if title is None
+        else title
+    )
     fig.update_layout(
-        title=f"t-SNE embedding of the dataset ({n_samples} datapoints) for different DoFs"
-        if not title
-        else title,
-        xaxis_title="",
-        yaxis_title="",
+        title=sup_title,
         template="plotly_dark",
-        width=1600 if not width else width,
-        height=800 if not height else height,
-        showlegend=False,
-        font=dict(
-            family="Courier New, monospace",
-            size=18,
-        ),
+        width=width,
+        height=height,
+        font=dict(family="Courier New, monospace", size=18),
     )
 
+    # Hide ticks and grids
     fig.update_xaxes(showticklabels=False, showgrid=False)
     fig.update_yaxes(showticklabels=False, showgrid=False)
+
     if show:
         fig.show()
+
     return fig
 
 
