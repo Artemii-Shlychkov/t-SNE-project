@@ -8,10 +8,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import seaborn as sns
 import openTSNE as TSNE
+from openTSNE.initialization import pca as pca
 from typing import List
 from dataclasses import dataclass
 from openTSNE.affinity import PerplexityBasedNN
-from sklearn.decomposition import PCA
+from openTSNE.nearest_neighbors import NNDescent
+# from sklearn.decomposition import PCA
 
 
 @dataclass
@@ -263,12 +265,14 @@ def generate_swiss_roll(
         fig = plot_swiss_roll_matplotlib(
             sr_points=sr_points, sr_color=sr_color, n_samples=n_samples
         )
+        fig.show()
         if save_fig:
             fig.savefig("figures/swiss_roll_matplotlib.png")
     elif plot == "plotly":
         fig = plot_swiss_roll_plotly(
             sr_points=sr_points, sr_color=sr_color, n_samples=n_samples
         )
+        fig.show()
         if save_fig:
             fig.write_image("figures/swiss_roll_plotly.png")
 
@@ -355,7 +359,15 @@ def plot_swiss_roll_matplotlib(
 
 # Create a 3D scatter plot
 def plot_swiss_roll_plotly(
-    sr_points: np.ndarray, sr_color: np.ndarray, n_samples: int, row=1, col=1, fig=None
+    sr_points: np.ndarray,
+    sr_color: np.ndarray,
+    n_samples: int,
+    row=1,
+    col=1,
+    fig=None,
+    title=None,
+    width=800,
+    height=600,
 ) -> go.Figure:
     """
     Create a 3D scatter plot of the Swiss Roll dataset using Plotly.
@@ -402,10 +414,10 @@ def plot_swiss_roll_plotly(
         row=row,
         col=col,
     )
-
+    title_font_size = width // 75
     # Update the layout for a dark background
     fig.update_layout(
-        title="Swiss Roll in Ambient Space",
+        title="Swiss Roll in Ambient Space" if title is None else title,
         template="plotly_dark",
         scene=dict(
             xaxis=dict(title="X"),
@@ -415,8 +427,9 @@ def plot_swiss_roll_plotly(
                 eye=dict(x=-1, y=2, z=0.5),  # Camera perspective
             ),
         ),
-        width=800 * col,
-        height=600 * row,
+        width=width * col,
+        height=height * row,
+        font=dict(family="Courier New, monospace", size=title_font_size),
     )
 
     # Add a text annotation for the number of samples
@@ -681,12 +694,16 @@ def plot_TSNE_plotly(
         if title is None
         else title
     )
+
+    # dynamic font size
+    title_font_size = width // 85
+
     fig.update_layout(
         title=sup_title,
         template="plotly_dark",
         width=width,
         height=height,
-        font=dict(family="Courier New, monospace", size=18),
+        font=dict(family="Courier New, monospace", size=title_font_size),
     )
 
     # Hide ticks and grids
@@ -705,11 +722,20 @@ def compute_tsne_embedding(
     perplexity: int = 50,
 ) -> List[TSNE.TSNE]:
     print("Computing the shared affinities...")
-    affinities = PerplexityBasedNN(data=raw_data, perplexity=perplexity, n_jobs=-1)
+
+    affinities = PerplexityBasedNN(
+        raw_data,
+        perplexity=perplexity,
+        metric="euclidean",
+        n_jobs=-1,
+    )
+
+    # print(affinities.P)
 
     print("Computing the PCA initialization...")
-    pca = PCA(n_components=2)
-    pca_init = pca.fit_transform(raw_data)
+    pca_init = pca(X=raw_data, n_components=2, random_state=42, svd_solver="auto")
+
+    # precompute the neighbors
 
     tsne_results = []
     for alpha in alphas:
@@ -720,11 +746,7 @@ def compute_tsne_embedding(
             n_jobs=-1,
             random_state=42,
             dof=alpha,
+            metric="euclidean",
         )
-        tsne_results.append(
-            tsne.fit(
-                raw_data,
-                affinities=affinities,
-            )
-        )
+        tsne_results.append(tsne.fit(X=None, affinities=affinities))
     return tsne_results
