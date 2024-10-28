@@ -1,8 +1,9 @@
 import numpy as np
+from typing import Optional
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import pairwise_distances
 import sklearn.datasets
-from typing import Tuple
+from typing import Tuple, List
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -10,10 +11,28 @@ import seaborn as sns
 import openTSNE as TSNE
 from openTSNE.initialization import pca as pca
 from typing import List
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from openTSNE.affinity import PerplexityBasedNN
 from openTSNE.nearest_neighbors import NNDescent
+import pandas as pd
+import json
+import pickle
 # from sklearn.decomposition import PCA
+
+
+@dataclass
+class TSNEResult:
+    raw_data: np.ndarray
+    x: np.ndarray
+    y: np.ndarray
+    alpha: float
+    n_samples = None
+    labels: np.ndarray | None
+    KL: float | None
+    kNN_recall: float | None
+
+    def __post_init__(self):
+        self.n_samples = self.raw_data.shape[0]
 
 
 @dataclass
@@ -442,147 +461,144 @@ def plot_swiss_roll_plotly(
         showarrow=False,
         font=dict(color="white"),
     )
-
+    fig.show()
     return fig
 
 
+# def plot_TSNE(
+#     tsne_result,
+#     ax,
+#     raw_data: np.ndarray = None,
+#     labels=None,
+#     display_metrics: bool = False,
+# ):
+#     def display_KL(x=0.01, y=0.95):
+#         KL = tsne_result.kl_divergence
+#         ax.text(
+#             x,
+#             y,
+#             r"$\mathcal{L}$" + f": {KL:.2f}",
+#             horizontalalignment="left",
+#             verticalalignment="center",
+#             transform=ax.transAxes,
+#             size=8,
+#             fontweight="bold",
+#         )
+
+#     def display_knn_recall(x=0.01, y=0.95):
+#         if raw_data is None:
+#             raise ValueError("raw_data must be provided to compute kNN recall")
+#         knn_recall = compute_knn_recall(raw_data, tsne_result)
+#         ax.text(
+#             x,
+#             y,
+#             "kNN Recall" + f": {knn_recall:.2f}",
+#             horizontalalignment="left",
+#             verticalalignment="center",
+#             transform=ax.transAxes,
+#             size=8,
+#             fontweight="bold",
+#         )
+
+#     sns.scatterplot(
+#         x=tsne_result[:, 0],
+#         y=tsne_result[:, 1],
+#         hue=labels,
+#         palette=sns.color_palette("Spectral", as_cmap=True),
+#         legend=False,
+#         alpha=0.8,
+#         size=0.5,
+#         ax=ax,
+#     )
+
+#     if display_metrics == "KL":
+#         display_KL()
+#     elif display_metrics == "knn_recall":
+#         display_knn_recall()
+#     elif display_metrics == "all":
+#         display_KL()
+#         display_knn_recall(y=0.9)
+
+#     ax.set_xticks([])
+#     ax.set_yticks([])
+#     sns.despine(left=True, bottom=True)
+#     plt.tight_layout()
+
+
+# def plot_TSNE(
+#     tsne_result,
+#     ax,
+#     raw_data: np.ndarray = None,
+#     labels=None,
+#     display_metrics: bool = False,
+# ):
+#     def display_KL(x=0.01, y=0.95):
+#         KL = tsne_result.kl_divergence
+#         ax.text(
+#             x,
+#             y,
+#             r"$\mathcal{L}$" + f": {KL:.2f}",
+#             horizontalalignment="left",
+#             verticalalignment="center",
+#             transform=ax.transAxes,
+#             size=8,
+#             fontweight="bold",
+#         )
+
+#     def display_knn_recall(x=0.01, y=0.95):
+#         if raw_data is None:
+#             raise ValueError("raw_data must be provided to compute kNN recall")
+#         knn_recall = compute_knn_recall(raw_data, tsne_result)
+#         ax.text(
+#             x,
+#             y,
+#             "kNN Recall" + f": {knn_recall:.2f}",
+#             horizontalalignment="left",
+#             verticalalignment="center",
+#             transform=ax.transAxes,
+#             size=8,
+#             fontweight="bold",
+#         )
+
+#     sns.scatterplot(
+#         x=tsne_result[:, 0],
+#         y=tsne_result[:, 1],
+#         hue=labels,
+#         palette=sns.color_palette("Spectral", as_cmap=True),
+#         legend=False,
+#         alpha=0.8,
+#         size=0.5,
+#         ax=ax,
+#     )
+
+#     if display_metrics == "KL":
+#         display_KL()
+#     elif display_metrics == "knn_recall":
+#         display_knn_recall()
+#     elif display_metrics == "all":
+#         display_KL()
+#         display_knn_recall(y=0.9)
+
+#     ax.set_xticks([])
+#     ax.set_yticks([])
+#     sns.despine(left=True, bottom=True)
+#     plt.tight_layout()
+
+
 def plot_TSNE(
-    tsne_result,
-    ax,
-    raw_data: np.ndarray = None,
-    labels=None,
-    display_metrics: bool = False,
-):
-    def display_KL(x=0.01, y=0.95):
-        KL = tsne_result.kl_divergence
-        ax.text(
-            x,
-            y,
-            r"$\mathcal{L}$" + f": {KL:.2f}",
-            horizontalalignment="left",
-            verticalalignment="center",
-            transform=ax.transAxes,
-            size=8,
-            fontweight="bold",
-        )
-
-    def display_knn_recall(x=0.01, y=0.95):
-        if raw_data is None:
-            raise ValueError("raw_data must be provided to compute kNN recall")
-        knn_recall = compute_knn_recall(raw_data, tsne_result)
-        ax.text(
-            x,
-            y,
-            "kNN Recall" + f": {knn_recall:.2f}",
-            horizontalalignment="left",
-            verticalalignment="center",
-            transform=ax.transAxes,
-            size=8,
-            fontweight="bold",
-        )
-
-    sns.scatterplot(
-        x=tsne_result[:, 0],
-        y=tsne_result[:, 1],
-        hue=labels,
-        palette=sns.color_palette("Spectral", as_cmap=True),
-        legend=False,
-        alpha=0.8,
-        size=0.5,
-        ax=ax,
-    )
-
-    if display_metrics == "KL":
-        display_KL()
-    elif display_metrics == "knn_recall":
-        display_knn_recall()
-    elif display_metrics == "all":
-        display_KL()
-        display_knn_recall(y=0.9)
-
-    ax.set_xticks([])
-    ax.set_yticks([])
-    sns.despine(left=True, bottom=True)
-    plt.tight_layout()
-
-
-def plot_TSNE(
-    tsne_result,
-    ax,
-    raw_data: np.ndarray = None,
-    labels=None,
-    display_metrics: bool = False,
-):
-    def display_KL(x=0.01, y=0.95):
-        KL = tsne_result.kl_divergence
-        ax.text(
-            x,
-            y,
-            r"$\mathcal{L}$" + f": {KL:.2f}",
-            horizontalalignment="left",
-            verticalalignment="center",
-            transform=ax.transAxes,
-            size=8,
-            fontweight="bold",
-        )
-
-    def display_knn_recall(x=0.01, y=0.95):
-        if raw_data is None:
-            raise ValueError("raw_data must be provided to compute kNN recall")
-        knn_recall = compute_knn_recall(raw_data, tsne_result)
-        ax.text(
-            x,
-            y,
-            "kNN Recall" + f": {knn_recall:.2f}",
-            horizontalalignment="left",
-            verticalalignment="center",
-            transform=ax.transAxes,
-            size=8,
-            fontweight="bold",
-        )
-
-    sns.scatterplot(
-        x=tsne_result[:, 0],
-        y=tsne_result[:, 1],
-        hue=labels,
-        palette=sns.color_palette("Spectral", as_cmap=True),
-        legend=False,
-        alpha=0.8,
-        size=0.5,
-        ax=ax,
-    )
-
-    if display_metrics == "KL":
-        display_KL()
-    elif display_metrics == "knn_recall":
-        display_knn_recall()
-    elif display_metrics == "all":
-        display_KL()
-        display_knn_recall(y=0.9)
-
-    ax.set_xticks([])
-    ax.set_yticks([])
-    sns.despine(left=True, bottom=True)
-    plt.tight_layout()
-
-
-def plot_TSNE_plotly(
-    raw_data: np.ndarray,
-    tsne_results: list,
-    labels: np.ndarray = None,
-    alphas: np.ndarray = None,
+    tsne_results: List[TSNEResult],
     display_metrics: bool = False,
     grid=None,
     title=None,
     width=1600,
     height=800,
     show: bool = True,
-    custom_colors: list = None,
+    use_custom_colors: bool = False,
     colorscale="Rainbow",
     labeled: bool = True,
 ) -> go.Figure:
     n_subplots = len(tsne_results)
-    n_samples = raw_data.shape[0]
+    n_samples = tsne_results[0].n_samples
 
     # Grid auto-calculation if not provided
     if grid is None:
@@ -591,27 +607,22 @@ def plot_TSNE_plotly(
     else:
         n_rows, n_cols = grid
 
-    # Optionally compute goodness of fit metrics
-    goodness_of_fit = None
-    if display_metrics:
-        goodness_of_fit = compute_goodness_of_fit(
-            raw_data=raw_data, tsne_data_list=tsne_results, dofs=alphas, plot=False
-        )
+    alphas = [tsne.alpha for tsne in tsne_results]
 
     # Set color options
-    if custom_colors is None:
-        custom_colors = [
-            "red",
-            "blue",
-            "green",
-            "yellow",
-            "purple",
-            "orange",
-            "cyan",
-            "magenta",
-            "lime",
-            "white",
-        ]
+
+    custom_colors = [
+        "red",
+        "blue",
+        "green",
+        "yellow",
+        "purple",
+        "orange",
+        "cyan",
+        "magenta",
+        "lime",
+        "white",
+    ]
 
     # Prepare subplots
     fig = make_subplots(
@@ -626,23 +637,26 @@ def plot_TSNE_plotly(
     )
 
     # Add t-SNE scatter plots
+
     for i, tsne_result in enumerate(tsne_results):
+        labels = tsne_result.labels
         if labeled and labels is not None:
             unique_labels = np.unique(labels)
             for k, label in enumerate(unique_labels):
                 fig.add_trace(
                     go.Scatter(
-                        x=tsne_result[labels == label, 0],
-                        y=tsne_result[labels == label, 1],
+                        x=tsne_result.x[labels == label],
+                        y=tsne_result.y[labels == label],
                         mode="markers",
                         marker=dict(
                             size=3,
                             color=custom_colors[k % len(custom_colors)]
-                            if custom_colors
+                            if use_custom_colors
                             else label,
                             opacity=0.8,
                         ),
                         name=f"Label {label}",
+                        showlegend=True if i == 0 else False,
                     ),
                     row=(i // n_cols) + 1,
                     col=(i % n_cols) + 1,
@@ -650,8 +664,8 @@ def plot_TSNE_plotly(
         else:
             fig.add_trace(
                 go.Scatter(
-                    x=tsne_result[:, 0],
-                    y=tsne_result[:, 1],
+                    x=tsne_result.x,
+                    y=tsne_result.y,
                     mode="markers",
                     marker=dict(
                         size=3,
@@ -666,11 +680,11 @@ def plot_TSNE_plotly(
             )
 
         # Add metrics as annotations if required
-        if display_metrics and goodness_of_fit is not None:
+        if display_metrics:
             xref = f"x{i+1}" if i > 0 else "x"
             yref = f"y{i+1}" if i > 0 else "y"
             fig.add_annotation(
-                text=f"KL: {goodness_of_fit.KL_divergence[i]:.2f}",
+                text=f"KL: {tsne_result.KL:.2f}",
                 xref=f"{xref} domain",
                 yref=f"{yref} domain",
                 x=0,
@@ -679,7 +693,7 @@ def plot_TSNE_plotly(
                 font=dict(color="white", size=12),
             )
             fig.add_annotation(
-                text=f"kNN Recall: {goodness_of_fit.kNN_recall[i]:.2f}",
+                text=f"kNN Recall: {tsne_result.kNN_recall:.2f}",
                 xref=f"{xref} domain",
                 yref=f"{yref} domain",
                 x=0,
@@ -719,9 +733,15 @@ def plot_TSNE_plotly(
 def compute_tsne_embedding(
     raw_data: np.ndarray,
     alphas: np.ndarray,
+    labels: Optional[np.ndarray] = None,
     perplexity: int = 50,
-) -> List[TSNE.TSNE]:
+    dataset_name: Optional[str] = None,
+    compute_metrics: bool = False,
+    save_results: bool = False,
+) -> List[TSNEResult]:
     print("Computing the shared affinities...")
+
+    raw_data_name = str()
 
     affinities = PerplexityBasedNN(
         raw_data,
@@ -730,14 +750,11 @@ def compute_tsne_embedding(
         n_jobs=-1,
     )
 
-    # print(affinities.P)
-
     print("Computing the PCA initialization...")
     pca_init = pca(X=raw_data, n_components=2, random_state=42, svd_solver="auto")
 
-    # precompute the neighbors
-
     tsne_results = []
+
     for alpha in alphas:
         print(f"Computing t-SNE embedding for alpha={alpha}...")
         tsne = TSNE.TSNE(
@@ -747,6 +764,34 @@ def compute_tsne_embedding(
             random_state=42,
             dof=alpha,
             metric="euclidean",
+        ).fit(X=None, affinities=affinities)
+
+        KL = None
+        kNN_recall = None
+
+        if compute_metrics:
+            KL = tsne.kl_divergence
+            kNN_recall = compute_knn_recall(raw_data, tsne)
+
+        x_coords = np.array(tsne[:, 0])
+        y_coords = np.array(tsne[:, 1])
+
+        embedding_result = TSNEResult(
+            raw_data=raw_data,
+            x=x_coords,
+            y=y_coords,
+            labels=labels,
+            alpha=alpha,
+            KL=KL,
+            kNN_recall=kNN_recall,
         )
-        tsne_results.append(tsne.fit(X=None, affinities=affinities))
+
+        tsne_results.append(embedding_result)
+
+    if save_results:
+        dataset_name = dataset_name if dataset_name is not None else "dataset"
+        print("Saving results to a .pkl file...")
+        # Save results to a .npz file
+        pickle.dump(tsne_results, open(f"{dataset_name}_tsne_results.pkl", "wb"))
+
     return tsne_results
