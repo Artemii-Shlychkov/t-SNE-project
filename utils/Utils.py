@@ -36,6 +36,32 @@ class TSNEResult:
 
 
 @dataclass
+class DataSetTSNE:
+    dataset_name: str
+    tsne_results: List[TSNEResult]
+    alphas: List[float] = None
+    KLs: List[float] = None
+    min_KL: float = 0
+    optimal_alpha_KL: float = 0
+    max_kNN_recall: float = 0
+    kNNs: List[float] = None
+    optimal_alpha_kNN: float = 0
+
+    def __post_init__(self):
+        self.alphas = [alpha for alpha in self.alphas]
+        self.KLs = [result.KL for result in self.tsne_results]
+        self.min_KL = min([result.KL for result in self.tsne_results])
+        self.optimal_alpha_KL = self.alphas[
+            np.argmin([result.KL for result in self.tsne_results])
+        ]
+        self.kNNs = [result.kNN_recall for result in self.tsne_results]
+        self.max_kNN_recall = max([result.kNN_recall for result in self.tsne_results])
+        self.optimal_alpha_kNN = self.alphas[
+            np.argmax([result.kNN_recall for result in self.tsne_results])
+        ]
+
+
+@dataclass
 class GoodnessOfFit:
     alphas: np.ndarray
     KL_divergence: list
@@ -588,6 +614,7 @@ def plot_swiss_roll_plotly(
 def plot_TSNE(
     tsne_results: List[TSNEResult],
     display_metrics: bool = False,
+    alphas: Optional[np.ndarray] = None,
     grid=None,
     title=None,
     width=1600,
@@ -597,7 +624,14 @@ def plot_TSNE(
     colorscale="Rainbow",
     labeled: bool = True,
 ) -> go.Figure:
-    n_subplots = len(tsne_results)
+    alphas = (
+        [tsne.alpha for tsne in tsne_results.tsne_results] if alphas is None else alphas
+    )
+
+    # return only tsne_results for chosen alphas
+    tsne_results = [tsne for tsne in tsne_results.tsne_results if tsne.alpha in alphas]
+
+    n_subplots = len(alphas)
     n_samples = tsne_results[0].n_samples
 
     # Grid auto-calculation if not provided
@@ -606,8 +640,6 @@ def plot_TSNE(
         n_rows = (n_subplots + n_cols - 1) // n_cols
     else:
         n_rows, n_cols = grid
-
-    alphas = [tsne.alpha for tsne in tsne_results]
 
     # Set color options
 
