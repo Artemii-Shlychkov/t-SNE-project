@@ -491,130 +491,10 @@ def plot_swiss_roll_plotly(
     return fig
 
 
-# def plot_TSNE(
-#     tsne_result,
-#     ax,
-#     raw_data: np.ndarray = None,
-#     labels=None,
-#     display_metrics: bool = False,
-# ):
-#     def display_KL(x=0.01, y=0.95):
-#         KL = tsne_result.kl_divergence
-#         ax.text(
-#             x,
-#             y,
-#             r"$\mathcal{L}$" + f": {KL:.2f}",
-#             horizontalalignment="left",
-#             verticalalignment="center",
-#             transform=ax.transAxes,
-#             size=8,
-#             fontweight="bold",
-#         )
-
-#     def display_knn_recall(x=0.01, y=0.95):
-#         if raw_data is None:
-#             raise ValueError("raw_data must be provided to compute kNN recall")
-#         knn_recall = compute_knn_recall(raw_data, tsne_result)
-#         ax.text(
-#             x,
-#             y,
-#             "kNN Recall" + f": {knn_recall:.2f}",
-#             horizontalalignment="left",
-#             verticalalignment="center",
-#             transform=ax.transAxes,
-#             size=8,
-#             fontweight="bold",
-#         )
-
-#     sns.scatterplot(
-#         x=tsne_result[:, 0],
-#         y=tsne_result[:, 1],
-#         hue=labels,
-#         palette=sns.color_palette("Spectral", as_cmap=True),
-#         legend=False,
-#         alpha=0.8,
-#         size=0.5,
-#         ax=ax,
-#     )
-
-#     if display_metrics == "KL":
-#         display_KL()
-#     elif display_metrics == "knn_recall":
-#         display_knn_recall()
-#     elif display_metrics == "all":
-#         display_KL()
-#         display_knn_recall(y=0.9)
-
-#     ax.set_xticks([])
-#     ax.set_yticks([])
-#     sns.despine(left=True, bottom=True)
-#     plt.tight_layout()
-
-
-# def plot_TSNE(
-#     tsne_result,
-#     ax,
-#     raw_data: np.ndarray = None,
-#     labels=None,
-#     display_metrics: bool = False,
-# ):
-#     def display_KL(x=0.01, y=0.95):
-#         KL = tsne_result.kl_divergence
-#         ax.text(
-#             x,
-#             y,
-#             r"$\mathcal{L}$" + f": {KL:.2f}",
-#             horizontalalignment="left",
-#             verticalalignment="center",
-#             transform=ax.transAxes,
-#             size=8,
-#             fontweight="bold",
-#         )
-
-#     def display_knn_recall(x=0.01, y=0.95):
-#         if raw_data is None:
-#             raise ValueError("raw_data must be provided to compute kNN recall")
-#         knn_recall = compute_knn_recall(raw_data, tsne_result)
-#         ax.text(
-#             x,
-#             y,
-#             "kNN Recall" + f": {knn_recall:.2f}",
-#             horizontalalignment="left",
-#             verticalalignment="center",
-#             transform=ax.transAxes,
-#             size=8,
-#             fontweight="bold",
-#         )
-
-#     sns.scatterplot(
-#         x=tsne_result[:, 0],
-#         y=tsne_result[:, 1],
-#         hue=labels,
-#         palette=sns.color_palette("Spectral", as_cmap=True),
-#         legend=False,
-#         alpha=0.8,
-#         size=0.5,
-#         ax=ax,
-#     )
-
-#     if display_metrics == "KL":
-#         display_KL()
-#     elif display_metrics == "knn_recall":
-#         display_knn_recall()
-#     elif display_metrics == "all":
-#         display_KL()
-#         display_knn_recall(y=0.9)
-
-#     ax.set_xticks([])
-#     ax.set_yticks([])
-#     sns.despine(left=True, bottom=True)
-#     plt.tight_layout()
-
-
 def plot_TSNE(
     tsne_results: List[TSNEResult],
     display_metrics: bool = False,
-    alphas: Optional[np.ndarray] = None,
+    custom_alphas: Optional[np.ndarray] = None,
     grid=None,
     title=None,
     width=1600,
@@ -624,12 +504,13 @@ def plot_TSNE(
     colorscale="Rainbow",
     labeled: bool = True,
 ) -> go.Figure:
-    alphas = (
-        [tsne.alpha for tsne in tsne_results.tsne_results] if alphas is None else alphas
-    )
+    if custom_alphas:
+        alphas = custom_alphas
+        # return only tsne_results for chosen alphas
+        tsne_results = [tsne for tsne in tsne_results if tsne.alpha in custom_alphas]
 
-    # return only tsne_results for chosen alphas
-    tsne_results = [tsne for tsne in tsne_results.tsne_results if tsne.alpha in alphas]
+    else:
+        alphas = np.array([tsne.alpha for tsne in tsne_results])
 
     n_subplots = len(alphas)
     n_samples = tsne_results[0].n_samples
@@ -664,7 +545,7 @@ def plot_TSNE(
             f"α={alpha:.2f}"
             for alpha in (alphas if alphas is not None else range(n_subplots))
         ],
-        vertical_spacing=0.05,
+        vertical_spacing=0.2,
         horizontal_spacing=0.05,
     )
 
@@ -750,6 +631,7 @@ def plot_TSNE(
         width=width,
         height=height,
         font=dict(family="Courier New, monospace", size=title_font_size),
+        margin=dict(l=0, r=0, t=100, b=100),
     )
 
     # Hide ticks and grids
