@@ -4,6 +4,7 @@ from openTSNE import affinity, TSNEEmbedding, initialization
 from openTSNE.affinity import Affinities  # Import the class
 from openTSNE.tsne import TSNE
 from openTSNE import _tsne
+from openTSNE import kl_divergence as KL
 from openTSNE.quad_tree import QuadTree
 
 import matplotlib.gridspec as gridspec
@@ -317,6 +318,35 @@ def compute_gradient_alpha_bh(
     return alpha_gradient[0]
 
 
+def compute_exact_openTSNE_KL(
+    embedding: TSNEEmbedding, affinity_matrix: np.ndarray, alpha: float
+) -> float:
+    kl_exact_openTSNE = KL.kl_divergence_exact(
+        P=affinity_matrix, embedding=embedding, dof=alpha
+    )
+    return kl_exact_openTSNE
+
+
+def drift_optimization(alpha, current_kl, embedding, affinity_matrix, alpha_lr):
+    multiplicators = [0.1, 0.5, 1, 2, 5, 10, 100]
+
+    for mult in multiplicators:
+        kl = compute_exact_openTSNE_KL(
+            embedding, affinity_matrix, alpha + alpha_lr * mult
+        )
+
+        if kl < current_kl:
+            return alpha + alpha_lr * mult
+        else:
+            kl = compute_exact_openTSNE_KL(
+                embedding, affinity_matrix, alpha - alpha_lr * mult
+            )
+            if kl < current_kl:
+                return alpha - alpha_lr * mult
+
+    return alpha
+
+
 def tsne_with_dof_optimisation(
     X: np.ndarray,
     n_iter: int,
@@ -425,23 +455,15 @@ def tsne_with_dof_optimisation(
                 embedding.optimize(1, inplace=True, dof=current_alpha)
 
             elif optimise_for_alpha == "drift" and i > 0:
-                print("Optimizing with drift...") if i == 0 else None
-                if alpha_lr > 0.1:
-                    print(
-                        "Learning rate is too high for drift optimization. Please choose a smaller learning rate"
-                    )
-
-                im_embedding = embedding.optimize(
-                    1, inplace=False, dof=current_alpha + alpha_lr
+                current_kl = embedding.kl_divergence
+                current_alpha = drift_optimization(
+                    alpha=current_alpha,
+                    current_kl=current_kl,
+                    embedding=embedding,
+                    affinity_matrix=affinity_matrix,
+                    alpha_lr=alpha_lr,
                 )
-                kl = im_embedding.kl_divergence
-                if kl < KLs[i - 1]:
-                    current_alpha += alpha_lr
-                    grad_alpha = alpha_lr
 
-                else:
-                    current_alpha -= alpha_lr
-                    grad_alpha = -alpha_lr
                 embedding.optimize(1, inplace=True, dof=current_alpha)
 
         elif not optimise_for_alpha:
